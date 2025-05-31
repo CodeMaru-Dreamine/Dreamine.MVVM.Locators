@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
 
     <PackageId>Dreamine.MVVM.Locators</PackageId>
-    <Version>1.0.3</Version>
+    <Version>1.0.4</Version>
     <Authors>Dreamine Core Team</Authors>
     <Company>Dreamine</Company>
     <Description>Dreamine MVVM 프레임워크에서 ViewModel, Service의 등록과 생성을 처리하는 Locator 모듈입니다.</Description>
