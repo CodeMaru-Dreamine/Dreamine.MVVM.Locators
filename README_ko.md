@@ -8,7 +8,7 @@ View ↔ ViewModel 자동 연결 인프라 라이브러리입니다.
 * 규칙 기반 ViewModel 자동 생성
 * DI Container 연동
 
-\[➡️ English Version](README.md)
+[➡️ English Version](README.md)
 
 ## 주요 기능
 
