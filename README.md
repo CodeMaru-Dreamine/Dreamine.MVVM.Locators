@@ -9,7 +9,7 @@ This library provides a lightweight ViewModel locator implementation that suppor
 
 It allows Views to automatically obtain their corresponding ViewModel instances without breaking the MVVM pattern.
 
-\[➡️ 한국어 문서 보기](README\_ko.md)
+[➡️ 한국어 문서 보기](README\_ko.md)
 
 ## Features
 
