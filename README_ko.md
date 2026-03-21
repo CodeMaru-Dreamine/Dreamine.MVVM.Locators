@@ -1,67 +1,205 @@
 # Dreamine.MVVM.Locators
 
-Dreamine MVVM 프레임워크에서 사용하는  
-View ↔ ViewModel 자동 연결 인프라 라이브러리입니다.
+Dreamine MVVM 프레임워크를 위한 View ↔ ViewModel 매핑 인프라입니다.
 
-이 라이브러리는 다음 두 가지 방식을 지원합니다.
+이 라이브러리는 규칙 기반 해석, 수동 등록, 역방향 View 해석, Dependency Injection 연동을 지원하는 경량 ViewModel Locator 를 제공합니다.
 
-* 규칙 기반 ViewModel 자동 생성
-* DI Container 연동
+이 라이브러리는 **플랫폼 비종속 매핑 엔진**으로 설계되었습니다. 핵심 목적은 View 타입으로부터 적절한 ViewModel 타입을 찾고, ViewModel 타입으로부터 적절한 View 타입을 찾는 것입니다.
 
-[➡️ English Version](README.md)
+`DataContext`, `FrameworkElement`, `Loaded` 이벤트 연결 같은 WPF 전용 처리는 이 라이브러리의 책임이 아닙니다.
+
+[➡️ English README](./README.md)
 
 ## 주요 기능
 
-* View ↔ ViewModel 규칙 기반 매핑
-* DI Container 연동 지원
-* 수동 ViewModel 등록
-* Assembly 자동 스캔 매핑
-* ViewModel → View 역방향 생성
+- 규칙 기반 View ↔ ViewModel 매핑
+- 수동 ViewModel 등록
+- 선택적 DI Resolver 연동
+- 어셈블리 자동 스캔
+- ViewModel 로부터 View 역방향 해석
+- 루트 네임스페이스 탐색 지원
+- 하위 폴더 및 중첩 네임스페이스 탐색 지원
+- 다음과 같은 다양한 네임스페이스 구조 지원:
+  - `Views`
+  - `View`
+  - `Pages`
+  - `Windows`
+  - `Dialogs`
+  - `GUI`
+  - `GUIs`
+  - `Screens`
+  - `Controls`
 
-## 매핑 규칙
+## 설계 목적
 
-.Views.  →  .ViewModels.  
-View     →  ViewModel
+`Dreamine.MVVM.Locators` 는 WPF 전용 타입에 직접 종속되지 않도록 설계되었습니다.
 
-예시
+이 라이브러리의 책임은 다음과 같습니다.
 
-DreamineApp.Views.Login.MainWindow  
-→  
-DreamineApp.ViewModels.Login.MainWindowViewModel
+- View 타입으로부터 ViewModel 타입 해석
+- ViewModel 타입으로부터 View 타입 해석
+- 일관된 규칙 기반 매핑 엔진 제공
+- 수동 매핑 및 DI 기반 생성 지원
 
-## DI 지원
+이 라이브러리의 책임이 아닌 것은 다음과 같습니다.
 
-Resolver가 존재하면
+- `DataContext` 설정
+- `Loaded` 이벤트 구독
+- `Window`, `Page`, `UserControl` 상속 여부 판별
 
+이런 플랫폼 전용 동작은 별도의 WPF 전용 계층에서 처리해야 합니다.
+
+## 매핑 동작 방식
+
+Locator 는 다음 순서로 타입을 찾습니다.
+
+### View → ViewModel
+
+1. 수동 등록 맵 확인
+2. 규칙 기반 네임스페이스 후보 탐색
+3. 부모 네임스페이스 확장 탐색
+4. 루트 네임스페이스 탐색
+5. 어셈블리 전체에서 타입명 fallback 검색
+
+예를 들어 View 이름이 `MainWindow` 라면 다음과 같은 후보를 순서대로 찾습니다.
+
+- `MyApp.ViewModels.MainWindowViewModel`
+- `MyApp.Views.Admin.MainWindow` → `MyApp.ViewModels.Admin.MainWindowViewModel`
+- `MyApp.GUI.Login.MainWindow` → `MyApp.ViewModels.Login.MainWindowViewModel`
+- `MyApp.MainWindowViewModel`
+
+### ViewModel → View
+
+1. 규칙 기반 네임스페이스 후보 탐색
+2. 부모 네임스페이스 확장 탐색
+3. 루트 네임스페이스 탐색
+4. 어셈블리 전체에서 타입명 fallback 검색
+
+## 지원 가능한 구조 예시
+
+### 루트 네임스페이스
+
+```csharp
+namespace MyApp;
+
+public partial class MainWindow
+{
+}
+
+public sealed class MainWindowViewModel
+{
+}
+```
+
+### 기본 Views / ViewModels 구조
+
+```csharp
+namespace MyApp.Views;
+
+public partial class MainWindow
+{
+}
+
+namespace MyApp.ViewModels;
+
+public sealed class MainWindowViewModel
+{
+}
+```
+
+### 하위 폴더 구조
+
+```csharp
+namespace MyApp.Views.Admin;
+
+public partial class MainWindow
+{
+}
+
+namespace MyApp.ViewModels.Admin;
+
+public sealed class MainWindowViewModel
+{
+}
+```
+
+### 대체 폴더명 구조
+
+```csharp
+namespace MyApp.GUI.Account;
+
+public partial class LoginDialog
+{
+}
+
+namespace MyApp.ViewModels.Account;
+
+public sealed class LoginDialogViewModel
+{
+}
+```
+
+## Dependency Injection 지원
+
+Resolver 가 등록되어 있으면 먼저 Resolver 를 사용합니다.
+
+```csharp
 resolver.Resolve(vmType)
+```
 
-없으면
+Resolver 가 없으면 다음 방식으로 생성합니다.
 
+```csharp
 Activator.CreateInstance(vmType)
+```
 
-## 사용 방법
+## 사용 예시
 
-Resolver 등록
+### Resolver 등록
 
+```csharp
 ViewModelLocator.RegisterResolver(new MyResolver());
+```
 
-수동 매핑
+### 수동 매핑 등록
 
+```csharp
 ViewModelLocator.Register(typeof(MainWindow), typeof(MainWindowViewModel));
+```
 
-ViewModel 생성
+### ViewModel 해석
 
+```csharp
 var vm = ViewModelLocator.Resolve(typeof(MainWindow));
+```
 
-View 생성
+### View 해석
 
+```csharp
 var view = ViewModelLocator.ResolveView(typeof(MainWindowViewModel));
+```
 
-자동 등록
+### 자동 등록
 
+```csharp
 ViewModelLocator.RegisterAll(Assembly.GetExecutingAssembly());
+```
 
-## License
+## 권장 규약
+
+이 Locator 는 폭넓은 매칭을 지원하지만, 권장 구조는 여전히 다음과 같습니다.
+
+- `Views`
+- `ViewModels`
+
+이 규약을 유지하면 프로젝트 예측 가능성이 높아지고, 동일 타입명이 여러 개 존재할 때 모호성을 줄일 수 있습니다.
+
+## 참고 사항
+
+- 폭넓은 매칭은 유연성을 높이지만, 동일한 타입명이 여러 개 있을 경우 fallback 매칭이 모호해질 수 있습니다.
+- 후보가 여러 개일 가능성이 있으면 수동 등록을 우선하는 것이 안전합니다.
+- 이 라이브러리는 매핑과 생성까지를 담당하며, 플랫폼 이벤트 연결은 담당하지 않습니다.
+
+## 라이선스
 
 MIT License
-
