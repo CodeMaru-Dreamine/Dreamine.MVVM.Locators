@@ -400,14 +400,14 @@ namespace Dreamine.MVVM.Locators
         /// </summary>
         /// <param name="ns">원본 네임스페이스입니다.</param>
         /// <returns>부모 네임스페이스 목록입니다.</returns>
-        private static IEnumerable<string> ExpandParentNamespaces(string ns)
+        private static IEnumerable<string> ExpandParentNamespaces(string? ns)
         {
             if (string.IsNullOrWhiteSpace(ns))
             {
                 yield break;
             }
         
-            string current = ns!;
+            string current = ns ?? throw new InvalidOperationException();
             while (true)
             {
                 int lastDot = current.LastIndexOf('.');
