@@ -9,7 +9,7 @@ namespace Dreamine.MVVM.Locators
     /// </summary>
     public static class ViewModelLocator
     {
-        private static readonly Dictionary<Type, Type> _map = new();
+        private static readonly Dictionary<Type, Type> _map = new(32);
         private static IViewModelResolver? _resolver;
 
         /// <summary>
@@ -85,9 +85,7 @@ namespace Dreamine.MVVM.Locators
         {
             ArgumentNullException.ThrowIfNull(assembly);
 
-            Type[] allTypes = assembly.GetTypes()
-                .Where(t => t.IsClass && !t.IsAbstract)
-                .ToArray();
+            Type[] allTypes = [.. assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract)];
 
             IEnumerable<Type> viewCandidates = allTypes.Where(IsLikelyViewType);
 
@@ -214,11 +212,11 @@ namespace Dreamine.MVVM.Locators
         /// <param name="viewNamespace">View 네임스페이스입니다.</param>
         /// <param name="rootNamespace">루트 네임스페이스입니다.</param>
         /// <returns>탐색 후보 네임스페이스 목록입니다.</returns>
-        private static IReadOnlyList<string> BuildViewModelCandidateNamespaces(
+        private static string[] BuildViewModelCandidateNamespaces(
             string viewNamespace,
             string rootNamespace)
         {
-            List<string> results = new();
+            List<string> results = [];
 
             // 1. 동일 네임스페이스
             AddIfNotEmpty(results, viewNamespace);
@@ -240,7 +238,8 @@ namespace Dreamine.MVVM.Locators
             AddIfNotEmpty(results, $"{rootNamespace}.ViewModels");
             AddIfNotEmpty(results, rootNamespace);
 
-            return results.Distinct(StringComparer.Ordinal).ToArray();
+            return [.. results.Distinct(StringComparer.Ordinal)];
+            //return results.Distinct(StringComparer.Ordinal).ToArray();
         }
 
         /// <summary>
@@ -249,11 +248,11 @@ namespace Dreamine.MVVM.Locators
         /// <param name="viewModelNamespace">ViewModel 네임스페이스입니다.</param>
         /// <param name="rootNamespace">루트 네임스페이스입니다.</param>
         /// <returns>탐색 후보 네임스페이스 목록입니다.</returns>
-        private static IReadOnlyList<string> BuildViewCandidateNamespaces(
+        private static string[] BuildViewCandidateNamespaces(
             string viewModelNamespace,
             string rootNamespace)
         {
-            List<string> results = new();
+            List<string> results = [];
 
             // 1. 동일 네임스페이스
             AddIfNotEmpty(results, viewModelNamespace);
@@ -287,7 +286,8 @@ namespace Dreamine.MVVM.Locators
             AddIfNotEmpty(results, $"{rootNamespace}.Screens");
             AddIfNotEmpty(results, rootNamespace);
 
-            return results.Distinct(StringComparer.Ordinal).ToArray();
+            return [.. results.Distinct(StringComparer.Ordinal)];
+            //return results.Distinct(StringComparer.Ordinal).ToArray();
         }
 
         /// <summary>
@@ -306,7 +306,7 @@ namespace Dreamine.MVVM.Locators
             }
 
             string[] tokens =
-            {
+            [
                 "Views",
                 "View",
                 "Pages",
@@ -321,7 +321,7 @@ namespace Dreamine.MVVM.Locators
                 "Screen",
                 "Controls",
                 "Control"
-            };
+            ];
 
             foreach (string token in tokens)
             {
@@ -345,7 +345,7 @@ namespace Dreamine.MVVM.Locators
             }
 
             string[] replacements =
-            {
+            [
                 "Views",
                 "View",
                 "Pages",
@@ -360,7 +360,7 @@ namespace Dreamine.MVVM.Locators
                 "Screen",
                 "Controls",
                 "Control"
-            };
+            ];
 
             foreach (string replacement in replacements)
             {
@@ -457,7 +457,7 @@ namespace Dreamine.MVVM.Locators
         /// </summary>
         /// <param name="list">대상 목록입니다.</param>
         /// <param name="value">추가할 값입니다.</param>
-        private static void AddIfNotEmpty(ICollection<string> list, string? value)
+        private static void AddIfNotEmpty(List<string> list, string? value)
         {
             if (!string.IsNullOrWhiteSpace(value))
             {

@@ -6,7 +6,7 @@
 		<Nullable>enable</Nullable>
 
 		<PackageId>Dreamine.MVVM.Locators</PackageId>
-		<Version>1.0.6</Version>
+		<Version>1.0.7</Version>
 		<Authors>Dreamine Core Team</Authors>
 		<Company>Dreamine</Company>
 		<Description>Registration and resolution helpers for ViewModels and services in Dreamine MVVM.</Description>
