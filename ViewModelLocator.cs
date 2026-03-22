@@ -238,8 +238,7 @@ namespace Dreamine.MVVM.Locators
             AddIfNotEmpty(results, $"{rootNamespace}.ViewModels");
             AddIfNotEmpty(results, rootNamespace);
 
-            return [.. results.Distinct(StringComparer.Ordinal)];
-            //return results.Distinct(StringComparer.Ordinal).ToArray();
+            return [.. results.Distinct(StringComparer.Ordinal)];           
         }
 
         /// <summary>
@@ -286,8 +285,7 @@ namespace Dreamine.MVVM.Locators
             AddIfNotEmpty(results, $"{rootNamespace}.Screens");
             AddIfNotEmpty(results, rootNamespace);
 
-            return [.. results.Distinct(StringComparer.Ordinal)];
-            //return results.Distinct(StringComparer.Ordinal).ToArray();
+            return [.. results.Distinct(StringComparer.Ordinal)];          
         }
 
         /// <summary>
@@ -408,8 +406,8 @@ namespace Dreamine.MVVM.Locators
             {
                 yield break;
             }
-
-            string current = ns;
+        
+            string current = ns!;
             while (true)
             {
                 int lastDot = current.LastIndexOf('.');
@@ -417,7 +415,7 @@ namespace Dreamine.MVVM.Locators
                 {
                     yield break;
                 }
-
+        
                 current = current[..lastDot];
                 if (!string.IsNullOrWhiteSpace(current))
                 {
