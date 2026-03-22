@@ -404,24 +404,28 @@ namespace Dreamine.MVVM.Locators
         {
             if (string.IsNullOrWhiteSpace(ns))
             {
-                yield break;
+                return Array.Empty<string>();
             }
         
-            string current = ns ?? throw new InvalidOperationException();
-            while (true)
+            var results = new List<string>();
+            var current = ns;
+        
+            while (!string.IsNullOrWhiteSpace(current))
             {
-                int lastDot = current.LastIndexOf('.');
+                var lastDot = current.LastIndexOf('.');
                 if (lastDot < 0)
                 {
-                    yield break;
+                    break;
                 }
         
                 current = current[..lastDot];
                 if (!string.IsNullOrWhiteSpace(current))
                 {
-                    yield return current;
+                    results.Add(current);
                 }
             }
+        
+            return results;
         }
 
         /// <summary>
