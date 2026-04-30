@@ -85,9 +85,11 @@ namespace Dreamine.MVVM.Locators
         {
             ArgumentNullException.ThrowIfNull(assembly);
 
-            Type[] allTypes = [.. assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract)];
+            Type[] allTypes = GetAllLoadableTypes()
+                .Where(t => t.IsClass && !t.IsAbstract)
+                .ToArray();
 
-            IEnumerable<Type> viewCandidates = allTypes.Where(IsLikelyViewType);
+            IEnumerable<Type> viewCandidates = allTypes.Where(ViewNamingConvention.IsLikelyViewType);
 
             foreach (Type viewType in viewCandidates)
             {
@@ -105,30 +107,6 @@ namespace Dreamine.MVVM.Locators
         }
 
         /// <summary>
-        /// 현재 타입이 View 로 간주될 가능성이 높은지 판별합니다.
-        /// 공용 라이브러리이므로 플랫폼 타입 상속 여부 대신 이름 규칙을 사용합니다.
-        /// </summary>
-        /// <param name="type">검사 대상 타입입니다.</param>
-        /// <returns>View 후보이면 true, 아니면 false 입니다.</returns>
-        private static bool IsLikelyViewType(Type type)
-        {
-            if (!type.IsClass || type.IsAbstract)
-            {
-                return false;
-            }
-
-            string name = type.Name;
-
-            return name.EndsWith("Window", StringComparison.Ordinal)
-                || name.EndsWith("Page", StringComparison.Ordinal)
-                || name.EndsWith("View", StringComparison.Ordinal)
-                || name.EndsWith("Control", StringComparison.Ordinal)
-                || name.EndsWith("Dialog", StringComparison.Ordinal)
-                || name.EndsWith("Screen", StringComparison.Ordinal)
-                || name.EndsWith("Panel", StringComparison.Ordinal);
-        }
-
-        /// <summary>
         /// View 타입에 대응하는 ViewModel 타입을 찾습니다.
         /// </summary>
         /// <param name="viewType">View 타입입니다.</param>
@@ -136,33 +114,56 @@ namespace Dreamine.MVVM.Locators
         /// <returns>대응되는 ViewModel 타입이며, 찾지 못한 경우 null 입니다.</returns>
         private static Type? FindViewModelType(Type viewType, Type[]? cachedTypes = null)
         {
-            Assembly assembly = viewType.Assembly;
-            Type[] allTypes = cachedTypes ?? assembly.GetTypes();
+            Type[] allTypes = cachedTypes ?? GetAllLoadableTypes();
+            string[] candidateNames = ViewNamingConvention.GetViewModelTypeNameCandidates(viewType);
 
-            string viewName = viewType.Name;
-            string viewNamespace = viewType.Namespace ?? string.Empty;
-            string rootNamespace = GetRootNamespace(viewNamespace);
-
-            string candidateViewModelName = $"{viewName}ViewModel";
-
-            IReadOnlyList<string> candidateNamespaces =
-                BuildViewModelCandidateNamespaces(viewNamespace, rootNamespace);
-
-            foreach (string ns in candidateNamespaces)
+            foreach (string candidateName in candidateNames)
             {
-                string fullName = string.IsNullOrWhiteSpace(ns)
-                    ? candidateViewModelName
-                    : $"{ns}.{candidateViewModelName}";
+                Type? match = allTypes.FirstOrDefault(t =>
+                    t.FullName == candidateName ||
+                    t.Name == candidateName);
 
-                Type? match = allTypes.FirstOrDefault(t => t.FullName == fullName);
                 if (match != null)
                 {
                     return match;
                 }
             }
 
-            // 마지막 fallback: 이름만 일치하는 타입 검색
-            return allTypes.FirstOrDefault(t => t.Name == candidateViewModelName);
+            return null;
+        }
+
+        /// <summary>
+        /// 현재 AppDomain에 로드된 모든 Assembly에서 로드 가능한 타입을 가져옵니다.
+        /// </summary>
+        /// <returns>로드 가능한 타입 목록입니다.</returns>
+        private static Type[] GetAllLoadableTypes()
+        {
+            return AppDomain.CurrentDomain
+                .GetAssemblies()
+                .Where(assembly => !assembly.IsDynamic)
+                .SelectMany(GetLoadableTypes)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// 지정한 Assembly에서 로드 가능한 타입만 가져옵니다.
+        /// </summary>
+        /// <param name="assembly">검색 대상 Assembly입니다.</param>
+        /// <returns>로드 가능한 타입 목록입니다.</returns>
+        private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+        {
+            try
+            {
+                return assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                return ex.Types.Where(type => type != null)!;
+            }
+            catch
+            {
+                return Array.Empty<Type>();
+            }
         }
 
         /// <summary>
@@ -172,276 +173,22 @@ namespace Dreamine.MVVM.Locators
         /// <returns>대응되는 View 타입이며, 찾지 못한 경우 null 입니다.</returns>
         private static Type? FindViewType(Type viewModelType)
         {
-            string viewModelName = viewModelType.Name;
-            if (!viewModelName.EndsWith("ViewModel", StringComparison.Ordinal))
+            Type[] allTypes = GetAllLoadableTypes();
+            string[] candidateNames = ViewNamingConvention.GetViewTypeNameCandidates(viewModelType);
+
+            foreach (string candidateName in candidateNames)
             {
-                return null;
-            }
+                Type? match = allTypes.FirstOrDefault(t =>
+                    t.FullName == candidateName ||
+                    t.Name == candidateName);
 
-            Assembly assembly = viewModelType.Assembly;
-            Type[] allTypes = assembly.GetTypes();
-
-            string viewName = viewModelName[..^"ViewModel".Length];
-            string viewModelNamespace = viewModelType.Namespace ?? string.Empty;
-            string rootNamespace = GetRootNamespace(viewModelNamespace);
-
-            IReadOnlyList<string> candidateNamespaces =
-                BuildViewCandidateNamespaces(viewModelNamespace, rootNamespace);
-
-            foreach (string ns in candidateNamespaces)
-            {
-                string fullName = string.IsNullOrWhiteSpace(ns)
-                    ? viewName
-                    : $"{ns}.{viewName}";
-
-                Type? match = allTypes.FirstOrDefault(t => t.FullName == fullName);
                 if (match != null)
                 {
                     return match;
                 }
             }
 
-            // 마지막 fallback: 이름만 일치하는 타입 검색
-            return allTypes.FirstOrDefault(t => t.Name == viewName);
-        }
-
-        /// <summary>
-        /// View 네임스페이스를 기준으로 ViewModel 후보 네임스페이스 목록을 구성합니다.
-        /// 루트와 부모 네임스페이스까지 포함하여 폭넓게 탐색합니다.
-        /// </summary>
-        /// <param name="viewNamespace">View 네임스페이스입니다.</param>
-        /// <param name="rootNamespace">루트 네임스페이스입니다.</param>
-        /// <returns>탐색 후보 네임스페이스 목록입니다.</returns>
-        private static string[] BuildViewModelCandidateNamespaces(
-            string viewNamespace,
-            string rootNamespace)
-        {
-            List<string> results = [];
-
-            // 1. 동일 네임스페이스
-            AddIfNotEmpty(results, viewNamespace);
-
-            // 2. 현재 네임스페이스에서 View 계열 토큰을 ViewModels 로 치환
-            foreach (string candidate in BuildNamespaceReplacementCandidates(viewNamespace, "ViewModels"))
-            {
-                AddIfNotEmpty(results, candidate);
-            }
-
-            // 3. 부모 네임스페이스들 기반 후보
-            foreach (string parentNs in ExpandParentNamespaces(viewNamespace))
-            {
-                AddIfNotEmpty(results, $"{parentNs}.ViewModels");
-                AddIfNotEmpty(results, parentNs);
-            }
-
-            // 4. 루트 기준 후보
-            AddIfNotEmpty(results, $"{rootNamespace}.ViewModels");
-            AddIfNotEmpty(results, rootNamespace);
-
-            return [.. results.Distinct(StringComparer.Ordinal)];           
-        }
-
-        /// <summary>
-        /// ViewModel 네임스페이스를 기준으로 View 후보 네임스페이스 목록을 구성합니다.
-        /// </summary>
-        /// <param name="viewModelNamespace">ViewModel 네임스페이스입니다.</param>
-        /// <param name="rootNamespace">루트 네임스페이스입니다.</param>
-        /// <returns>탐색 후보 네임스페이스 목록입니다.</returns>
-        private static string[] BuildViewCandidateNamespaces(
-            string viewModelNamespace,
-            string rootNamespace)
-        {
-            List<string> results = [];
-
-            // 1. 동일 네임스페이스
-            AddIfNotEmpty(results, viewModelNamespace);
-
-            // 2. ViewModels -> 여러 View 계열 토큰으로 치환
-            foreach (string candidate in BuildViewNamespaceCandidatesFromViewModel(viewModelNamespace))
-            {
-                AddIfNotEmpty(results, candidate);
-            }
-
-            // 3. 부모 네임스페이스들 기반 후보
-            foreach (string parentNs in ExpandParentNamespaces(viewModelNamespace))
-            {
-                AddIfNotEmpty(results, $"{parentNs}.Views");
-                AddIfNotEmpty(results, $"{parentNs}.View");
-                AddIfNotEmpty(results, $"{parentNs}.Pages");
-                AddIfNotEmpty(results, $"{parentNs}.GUI");
-                AddIfNotEmpty(results, $"{parentNs}.GUIs");
-                AddIfNotEmpty(results, $"{parentNs}.Dialogs");
-                AddIfNotEmpty(results, $"{parentNs}.Screens");
-                AddIfNotEmpty(results, parentNs);
-            }
-
-            // 4. 루트 기준 후보
-            AddIfNotEmpty(results, $"{rootNamespace}.Views");
-            AddIfNotEmpty(results, $"{rootNamespace}.View");
-            AddIfNotEmpty(results, $"{rootNamespace}.Pages");
-            AddIfNotEmpty(results, $"{rootNamespace}.GUI");
-            AddIfNotEmpty(results, $"{rootNamespace}.GUIs");
-            AddIfNotEmpty(results, $"{rootNamespace}.Dialogs");
-            AddIfNotEmpty(results, $"{rootNamespace}.Screens");
-            AddIfNotEmpty(results, rootNamespace);
-
-            return [.. results.Distinct(StringComparer.Ordinal)];          
-        }
-
-        /// <summary>
-        /// View 관련 네임스페이스 토큰을 ViewModels 로 치환한 후보를 생성합니다.
-        /// </summary>
-        /// <param name="sourceNamespace">원본 네임스페이스입니다.</param>
-        /// <param name="replacement">치환 대상 문자열입니다.</param>
-        /// <returns>치환된 후보 네임스페이스 목록입니다.</returns>
-        private static IEnumerable<string> BuildNamespaceReplacementCandidates(
-            string sourceNamespace,
-            string replacement)
-        {
-            if (string.IsNullOrWhiteSpace(sourceNamespace))
-            {
-                yield break;
-            }
-
-            string[] tokens =
-            [
-                "Views",
-                "View",
-                "Pages",
-                "Page",
-                "Windows",
-                "Window",
-                "Dialogs",
-                "Dialog",
-                "GUI",
-                "GUIs",
-                "Screens",
-                "Screen",
-                "Controls",
-                "Control"
-            ];
-
-            foreach (string token in tokens)
-            {
-                foreach (string candidate in ReplaceNamespaceToken(sourceNamespace, token, replacement))
-                {
-                    yield return candidate;
-                }
-            }
-        }
-
-        /// <summary>
-        /// ViewModel 네임스페이스에서 View 계열 후보 네임스페이스를 생성합니다.
-        /// </summary>
-        /// <param name="sourceNamespace">원본 ViewModel 네임스페이스입니다.</param>
-        /// <returns>View 후보 네임스페이스 목록입니다.</returns>
-        private static IEnumerable<string> BuildViewNamespaceCandidatesFromViewModel(string sourceNamespace)
-        {
-            if (string.IsNullOrWhiteSpace(sourceNamespace))
-            {
-                yield break;
-            }
-
-            string[] replacements =
-            [
-                "Views",
-                "View",
-                "Pages",
-                "Page",
-                "Windows",
-                "Window",
-                "Dialogs",
-                "Dialog",
-                "GUI",
-                "GUIs",
-                "Screens",
-                "Screen",
-                "Controls",
-                "Control"
-            ];
-
-            foreach (string replacement in replacements)
-            {
-                foreach (string candidate in ReplaceNamespaceToken(sourceNamespace, "ViewModels", replacement))
-                {
-                    yield return candidate;
-                }
-            }
-        }
-
-        /// <summary>
-        /// 네임스페이스 내 특정 토큰을 다른 토큰으로 치환한 후보를 생성합니다.
-        /// </summary>
-        /// <param name="sourceNamespace">원본 네임스페이스입니다.</param>
-        /// <param name="from">기존 토큰입니다.</param>
-        /// <param name="to">치환할 토큰입니다.</param>
-        /// <returns>치환 결과 목록입니다.</returns>
-        private static IEnumerable<string> ReplaceNamespaceToken(
-            string sourceNamespace,
-            string from,
-            string to)
-        {
-            string middleToken = $".{from}.";
-            if (sourceNamespace.Contains(middleToken, StringComparison.Ordinal))
-            {
-                yield return sourceNamespace.Replace(middleToken, $".{to}.", StringComparison.Ordinal);
-            }
-
-            string endToken = $".{from}";
-            if (sourceNamespace.EndsWith(endToken, StringComparison.Ordinal))
-            {
-                yield return sourceNamespace[..^from.Length] + to;
-            }
-        }
-
-        /// <summary>
-        /// 부모 네임스페이스 후보들을 루트 방향으로 확장합니다.
-        /// 예: A.B.C.D -> A.B.C, A.B, A
-        /// </summary>
-        /// <param name="ns">원본 네임스페이스입니다.</param>
-        /// <returns>부모 네임스페이스 목록입니다.</returns>
-        private static IEnumerable<string> ExpandParentNamespaces(string? ns)
-        {
-            if (string.IsNullOrWhiteSpace(ns))
-            {
-                return Array.Empty<string>();
-            }
-        
-            var results = new List<string>();
-            var current = ns;
-        
-            while (!string.IsNullOrWhiteSpace(current))
-            {
-                var lastDot = current.LastIndexOf('.');
-                if (lastDot < 0)
-                {
-                    break;
-                }
-        
-                current = current[..lastDot];
-                if (!string.IsNullOrWhiteSpace(current))
-                {
-                    results.Add(current);
-                }
-            }
-        
-            return results;
-        }
-
-        /// <summary>
-        /// 네임스페이스 문자열에서 루트 네임스페이스를 반환합니다.
-        /// </summary>
-        /// <param name="ns">네임스페이스 문자열입니다.</param>
-        /// <returns>루트 네임스페이스입니다.</returns>
-        private static string GetRootNamespace(string ns)
-        {
-            if (string.IsNullOrWhiteSpace(ns))
-            {
-                return string.Empty;
-            }
-
-            int index = ns.IndexOf('.');
-            return index < 0 ? ns : ns[..index];
+            return null;
         }
 
         /// <summary>
@@ -452,19 +199,6 @@ namespace Dreamine.MVVM.Locators
         private static object? CreateInstance(Type type)
         {
             return _resolver?.Resolve(type) ?? Activator.CreateInstance(type);
-        }
-
-        /// <summary>
-        /// 값이 비어 있지 않을 때만 목록에 추가합니다.
-        /// </summary>
-        /// <param name="list">대상 목록입니다.</param>
-        /// <param name="value">추가할 값입니다.</param>
-        private static void AddIfNotEmpty(List<string> list, string? value)
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                list.Add(value);
-            }
         }
     }
 }
