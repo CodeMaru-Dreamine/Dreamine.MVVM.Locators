@@ -85,8 +85,8 @@ namespace Dreamine.MVVM.Locators
         {
             ArgumentNullException.ThrowIfNull(assembly);
 
-            Type[] allTypes = GetAllLoadableTypes()
-                .Where(t => t.IsClass && !t.IsAbstract)
+            Type[] allTypes = GetLoadableTypes(assembly)
+                .Where(t => t is { IsClass: true, IsAbstract: false })
                 .ToArray();
 
             IEnumerable<Type> viewCandidates = allTypes.Where(ViewNamingConvention.IsLikelyViewType);
@@ -198,7 +198,22 @@ namespace Dreamine.MVVM.Locators
         /// <returns>생성된 인스턴스입니다.</returns>
         private static object? CreateInstance(Type type)
         {
-            return _resolver?.Resolve(type) ?? Activator.CreateInstance(type);
+            System.Diagnostics.Debug.WriteLine($"[ViewModelLocator] CreateInstance: {type.FullName}");
+
+            if (_resolver is not null)
+            {
+                var resolved = _resolver.Resolve(type);
+
+                if (resolved is not null)
+                {
+                    return resolved;
+                }
+            }
+
+            throw new InvalidOperationException(
+                $"Cannot resolve ViewModel [{type.FullName}]. " +
+                "The type was not resolved by the configured resolver. " +
+                "Register the ViewModel in DMContainer or configure ViewModelLocator resolver.");
         }
     }
 }
